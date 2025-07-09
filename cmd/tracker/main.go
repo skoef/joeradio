@@ -206,7 +206,8 @@ func refreshToken(ctx context.Context) error {
 
 	slog.Info("refreshed auth token")
 
-	authToken = tok
+	// create new client with fresh token
+	client = spotify.New(auth.Client(ctx, tok))
 
 	return errRefreshedToken
 }
