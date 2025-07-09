@@ -123,7 +123,10 @@ func run(ctx context.Context) error {
 	}
 
 	logger.Info("search title on spotify")
-	results, err := client.Search(ctx, title, spotify.SearchTypeTrack, spotify.Limit(1))
+	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
+	// to 70's, 80's and 90's music
+	// this prevents us from getting remixes from later years in the results
+	results, err := client.Search(ctx, fmt.Sprintf("%s year:1970-1999", title), spotify.SearchTypeTrack, spotify.Limit(1))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			logger.Warn("token expired, trying to refresh")
