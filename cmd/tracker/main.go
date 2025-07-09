@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
@@ -26,6 +26,8 @@ const (
 )
 
 var (
+	errRefreshedToken = errors.New("token was refreshed")
+
 	auth = spotifyauth.New(spotifyauth.WithRedirectURL(redirectURI),
 		spotifyauth.WithClientID(os.Getenv("SPOTIFY_CLIENT_ID")),
 		spotifyauth.WithClientSecret(os.Getenv("SPOTIFY_CLIENT_SECRET")),
@@ -39,10 +41,20 @@ var (
 		"Ad break",
 	}
 
-	authToken *oauth2.Token
+	client      *spotify.Client
+	authToken   *oauth2.Token
+	playlistMap map[string]bool
+	lastTitle   string
 )
 
 func main() {
+	// set up logging
+	logOpts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, logOpts))
+	slog.SetDefault(logger)
+
 	ctx := context.Background()
 
 	// seed RNG and create a state for authentication
@@ -51,14 +63,12 @@ func main() {
 
 	// first start an HTTP server
 	http.HandleFunc("/callback", completeAuth)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Got request for:", r.URL.String())
-	})
 
 	go func() {
 		err := http.ListenAndServe(":8080", nil)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("failed serving oAuth callback", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
@@ -66,71 +76,139 @@ func main() {
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:", url)
 
 	// wait for auth to complete
-	client := <-ch
+	client = <-ch
 
-	playlist, err := client.GetPlaylist(ctx, playlistID)
+	var err error
+	playlistMap, err = getFullPlaylist(ctx, playlistID)
 	if err != nil {
-		panic("error: " + err.Error())
+		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
-	playlistMap := make(map[string]bool)
-	for _, item := range playlist.Tracks.Tracks {
-		playlistMap[string(item.Track.ID)] = true
-	}
-
-	fmt.Println("loaded playlist items", len(playlistMap))
+	logger.Debug("loaded playlist", slog.Int("items", len(playlistMap)))
+	logger.Debug("start tracking icecast", slog.String("url", streamUrl))
 
 	for {
-		title, err := GetStreamTitle(streamUrl)
-		if err != nil {
-			fmt.Printf("error: %s\n", err)
-		} else if title == "" {
-			fmt.Printf("error: empty title\n")
-		} else if shouldIgnoreTitle(title) {
-			fmt.Printf("error: ignoring title %s\n", title)
-		} else {
-			fmt.Println("icecast title", title)
-
-			results, err := client.Search(ctx, title, spotify.SearchTypeTrack, spotify.Limit(1))
-			if err != nil {
-				fmt.Printf("error: %s\n", err)
-			} else if len(results.Tracks.Tracks) != 1 {
-				fmt.Printf("no results for %s\n", title)
-			} else {
-				track := results.Tracks.Tracks[0]
-				fmt.Printf("found %s by %s (ID: %s)\n", track.Name, artistNames(track.Artists), track.ID)
-
-				if _, ok := playlistMap[string(track.ID)]; ok {
-					fmt.Printf("track %s already on playlist, skipping\n", track.ID)
-				} else {
-					fmt.Printf("adding track %s to playlist\n", track.ID)
-
-					_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
-					if err != nil {
-						if strings.Contains(err.Error(), `Post "https://accounts.spotify.com/api/token": context canceled`) {
-							fmt.Println("token expired, trying to refresh")
-
-							if tok, err := auth.RefreshToken(ctx, authToken); err != nil {
-								fmt.Printf("error: refreshing token failed: %s\n", err)
-							} else {
-								fmt.Printf("refreshed auth token, retrying")
-
-								authToken = tok
-
-								continue
-							}
-						}
-
-						fmt.Printf("error: %s\n", err)
-					} else {
-						playlistMap[string(track.ID)] = true
-					}
-				}
+		if err := run(ctx); err != nil {
+			logger.Warn("failed to complete run", slog.String("error", err.Error()))
+			if errors.Is(err, errRefreshedToken) {
+				logger.Debug("retrying immediately")
+				continue
 			}
 		}
 
 		time.Sleep(time.Minute)
 	}
+}
+
+func run(ctx context.Context) error {
+	title, err := GetStreamTitle(streamUrl)
+	if err != nil {
+		return err
+	}
+
+	if title == "" {
+		return errors.New("empty title")
+	}
+
+	logger := slog.With(slog.String("title", title))
+	if shouldIgnoreTitle(title) {
+		logger.Info("ignoring")
+		return nil
+	}
+
+	if title == lastTitle {
+		logger.Debug("same song, waiting")
+		return nil
+	}
+
+	logger.Info("search title on spotify")
+	results, err := client.Search(ctx, title, spotify.SearchTypeTrack, spotify.Limit(1))
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			logger.Warn("token expired, trying to refresh")
+
+			return refreshToken(ctx)
+		}
+
+		return fmt.Errorf("could not search: %w", err)
+	}
+
+	if len(results.Tracks.Tracks) == 0 {
+		return fmt.Errorf("song not found on spotify")
+	}
+
+	track := results.Tracks.Tracks[0]
+	logger = logger.With(slog.String("track_id", string(track.ID)))
+
+	logger.Info("found track on spotify",
+		slog.String("name", track.Name),
+		slog.String("artists", artistNames(track.Artists)))
+	if _, ok := playlistMap[string(track.ID)]; ok {
+		logger.Info("track already in playlist")
+		lastTitle = title
+		return nil
+	}
+
+	logger.Info("adding track to playlist")
+	_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
+	if err == nil {
+		playlistMap[string(track.ID)] = true
+		lastTitle = title
+		return nil
+	}
+
+	if errors.Is(err, context.Canceled) {
+		slog.Warn("token expired, trying to refresh")
+
+		return refreshToken(ctx)
+	}
+
+	return err
+}
+
+func getFullPlaylist(ctx context.Context, playlistID string) (map[string]bool, error) {
+	list := make(map[string]bool)
+	offset := 0
+
+	for {
+		playlistItems, err := client.GetPlaylistItems(ctx, spotify.ID(playlistID), spotify.Offset(offset))
+		if err != nil {
+			slog.Debug("error fetching playlist", slog.String("error", err.Error()))
+			break
+		}
+
+		offset += len(playlistItems.Items)
+
+		for _, item := range playlistItems.Items {
+			track := item.Track.Track
+			if _, found := list[string(track.ID)]; found {
+				slog.Warn("duplicate track in playlist", slog.String("track", string(track.Name)))
+			}
+			list[string(track.ID)] = true
+		}
+
+		// are we done yet?
+		if offset >= int(playlistItems.Total) {
+			break
+		}
+	}
+
+	return list, nil
+}
+
+func refreshToken(ctx context.Context) error {
+	tok, err := auth.RefreshToken(ctx, authToken)
+	if err != nil {
+		slog.Warn("refreshing token fail", slog.String("error", err.Error()))
+		return err
+	}
+
+	slog.Info("refreshed auth token")
+
+	authToken = tok
+
+	return errRefreshedToken
 }
 
 func artistNames(artists []spotify.SimpleArtist) string {
@@ -230,12 +308,14 @@ func completeAuth(w http.ResponseWriter, r *http.Request) {
 	authToken, err = auth.Token(r.Context(), state, r)
 	if err != nil {
 		http.Error(w, "Couldn't get token", http.StatusForbidden)
-		log.Fatal(err)
+		slog.Error("failed to parse token", slog.String("error", err.Error()))
+		return
 	}
 
 	if st := r.FormValue("state"); st != state {
 		http.NotFound(w, r)
-		log.Fatalf("State mismatch: %s != %s\n", st, state)
+		slog.Error("state mismatch", slog.String("expected", state), slog.String("got", st))
+		return
 	}
 
 	// use the token to get an authenticated client
