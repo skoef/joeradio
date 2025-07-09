@@ -207,7 +207,7 @@ func refreshToken(ctx context.Context) error {
 		return err
 	}
 
-	slog.Info("refreshed auth token")
+	slog.Debug("token refreshed", slog.Time("expires", tok.Expiry))
 
 	// create new client with fresh token
 	client = spotify.New(auth.Client(ctx, tok))
@@ -321,6 +321,8 @@ func completeAuth(w http.ResponseWriter, r *http.Request) {
 		slog.Error("state mismatch", slog.String("expected", state), slog.String("got", st))
 		return
 	}
+
+	slog.Debug("token granted", slog.Time("expires", authToken.Expiry))
 
 	// use the token to get an authenticated client
 	client := spotify.New(auth.Client(r.Context(), authToken))
