@@ -138,6 +138,7 @@ func run(ctx context.Context) error {
 	}
 
 	if len(results.Tracks.Tracks) == 0 {
+		lastTitle = title
 		return fmt.Errorf("song not found on spotify")
 	}
 
