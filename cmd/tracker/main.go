@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"joeradio/internal"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -41,10 +42,10 @@ var (
 		"Ad break",
 	}
 
-	client      *spotify.Client
-	authToken   *oauth2.Token
-	playlistMap map[string]bool
-	lastTitle   string
+	client        *spotify.Client
+	authToken     *oauth2.Token
+	playlistCache *internal.Playlist
+	lastTitle     string
 )
 
 func main() {
@@ -79,13 +80,13 @@ func main() {
 	client = <-ch
 
 	var err error
-	playlistMap, err = getFullPlaylist(ctx, playlistID)
+	playlistCache, err = getFullPlaylist(ctx, playlistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	logger.Debug("loaded playlist", slog.Int("items", len(playlistMap)))
+	logger.Debug("loaded playlist", slog.Int("items", playlistCache.Len()))
 	logger.Debug("start tracking icecast", slog.String("url", streamUrl))
 
 	for {
@@ -148,16 +149,18 @@ func run(ctx context.Context) error {
 	logger.Info("found track on spotify",
 		slog.String("name", track.Name),
 		slog.String("artists", artistNames(track.Artists)))
-	if _, ok := playlistMap[string(track.ID)]; ok {
+
+	if playlistCache.Has(string(track.ID)) {
 		logger.Info("track already in playlist")
 		lastTitle = title
 		return nil
 	}
 
-	logger.Info("adding track to playlist")
+	logger.Debug("adding track to playlist")
 	_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
 	if err == nil {
-		playlistMap[string(track.ID)] = true
+		len := playlistCache.Add(string(track.ID))
+		logger.Info("added track to playlist", slog.Int("length", len))
 		lastTitle = title
 		return nil
 	}
@@ -171,8 +174,8 @@ func run(ctx context.Context) error {
 	return err
 }
 
-func getFullPlaylist(ctx context.Context, playlistID string) (map[string]bool, error) {
-	list := make(map[string]bool)
+func getFullPlaylist(ctx context.Context, playlistID string) (*internal.Playlist, error) {
+	playlist := internal.NewPlaylist([]string{})
 	offset := 0
 
 	for {
@@ -185,11 +188,7 @@ func getFullPlaylist(ctx context.Context, playlistID string) (map[string]bool, e
 		offset += len(playlistItems.Items)
 
 		for _, item := range playlistItems.Items {
-			track := item.Track.Track
-			if _, found := list[string(track.ID)]; found {
-				slog.Warn("duplicate track in playlist", slog.String("track", string(track.Name)))
-			}
-			list[string(track.ID)] = true
+			playlist.Add(string(item.Track.Track.ID))
 		}
 
 		// are we done yet?
@@ -198,7 +197,7 @@ func getFullPlaylist(ctx context.Context, playlistID string) (map[string]bool, e
 		}
 	}
 
-	return list, nil
+	return playlist, nil
 }
 
 func refreshToken(ctx context.Context) error {
