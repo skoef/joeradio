@@ -27,7 +27,8 @@ const (
 )
 
 var (
-	errRefreshedToken = errors.New("token was refreshed")
+	errRefreshedToken   = errors.New("token was refreshed")
+	errCurrentlyNoTitle = errors.New("currently nothing is playing")
 
 	auth = spotifyauth.New(spotifyauth.WithRedirectURL(redirectURI),
 		spotifyauth.WithClientID(os.Getenv("SPOTIFY_CLIENT_ID")),
@@ -109,7 +110,7 @@ func run(ctx context.Context) error {
 	}
 
 	if title == "" {
-		return errors.New("empty title")
+		return errCurrentlyNoTitle
 	}
 
 	logger := slog.With(slog.String("title", title))
