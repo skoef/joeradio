@@ -29,6 +29,7 @@ const (
 var (
 	errRefreshedToken   = errors.New("token was refreshed")
 	errCurrentlyNoTitle = errors.New("currently nothing is playing")
+	errSongNotFound     = errors.New("song not found on spotify")
 
 	auth = spotifyauth.New(spotifyauth.WithRedirectURL(redirectURI),
 		spotifyauth.WithClientID(os.Getenv("SPOTIFY_CLIENT_ID")),
@@ -43,11 +44,17 @@ var (
 		"Ad break",
 	}
 
-	client        *spotify.Client
+	client        SpotifyClient
 	authToken     *oauth2.Token
 	playlistCache *internal.Playlist
 	lastTitle     string
 )
+
+type SpotifyClient interface {
+	Search(ctx context.Context, query string, t spotify.SearchType, opts ...spotify.RequestOption) (*spotify.SearchResult, error)
+	AddTracksToPlaylist(ctx context.Context, playlistID spotify.ID, trackIDs ...spotify.ID) (snapshotID string, err error)
+	GetPlaylistItems(ctx context.Context, playlistID spotify.ID, opts ...spotify.RequestOption) (*spotify.PlaylistItemPage, error)
+}
 
 func main() {
 	// set up logging
@@ -81,7 +88,7 @@ func main() {
 	client = <-ch
 
 	var err error
-	playlistCache, err = getFullPlaylist(ctx, playlistID)
+	playlistCache, err = getFullPlaylist(ctx, client, playlistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -141,7 +148,7 @@ func run(ctx context.Context) error {
 
 	if len(results.Tracks.Tracks) == 0 {
 		lastTitle = title
-		return fmt.Errorf("song not found on spotify")
+		return errSongNotFound
 	}
 
 	track := results.Tracks.Tracks[0]
@@ -175,15 +182,16 @@ func run(ctx context.Context) error {
 	return err
 }
 
-func getFullPlaylist(ctx context.Context, playlistID string) (*internal.Playlist, error) {
+// getFullPlaylist iterates over the playlist item pages returned by the API until
+// all items are fetched
+func getFullPlaylist(ctx context.Context, client SpotifyClient, playlistID string) (*internal.Playlist, error) {
 	playlist := internal.NewPlaylist([]string{})
 	offset := 0
 
 	for {
 		playlistItems, err := client.GetPlaylistItems(ctx, spotify.ID(playlistID), spotify.Offset(offset))
 		if err != nil {
-			slog.Debug("error fetching playlist", slog.String("error", err.Error()))
-			break
+			return nil, err
 		}
 
 		offset += len(playlistItems.Items)
