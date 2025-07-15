@@ -14,7 +14,7 @@ type Playlist struct {
 }
 
 // NewPlaylist returns a new Playlist and fills it with given items
-func NewPlaylist(items []string) *Playlist {
+func NewPlaylist(items ...string) *Playlist {
 	p := &Playlist{}
 	for _, i := range items {
 		p.Add(i)

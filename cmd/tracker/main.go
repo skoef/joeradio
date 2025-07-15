@@ -193,7 +193,7 @@ func run(ctx context.Context) error {
 // getFullPlaylist iterates over the playlist item pages returned by the API until
 // all items are fetched
 func getFullPlaylist(ctx context.Context, client SpotifyClient, playlistID string) (*internal.Playlist, error) {
-	playlist := internal.NewPlaylist([]string{})
+	playlist := internal.NewPlaylist()
 	offset := 0
 
 	for {
