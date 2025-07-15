@@ -15,8 +15,6 @@ linters:
   # Enable specific linter.
   # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
-    ### Custom linters
-    - zaploglabel
     ### Builtin linters
     - asasalint # Check for pass []any as any in variadic func(...any).
     - asciicheck # Checks that all code identifiers does not have non-ASCII symbols in the name.
@@ -2085,20 +2083,7 @@ linters:
 
     # The custom section can be used to define linter plugins to be loaded at runtime.
     # See README documentation for more info.
-    custom:
-      zaploglabel:
-        type: "module"
-        description: "Reports zap log labels that are not formatted using snake case"
-        settings:
-          special_words:
-            - id
-            - uid
-            - url
-            - evse
-            - emsp
-            - ocpp
-            - cpo
-            - ocpi
+    custom: {}
 
   # Defines a set of rules to ignore issues.
   # It does not skip the analysis, and so does not ignore "typecheck" errors.

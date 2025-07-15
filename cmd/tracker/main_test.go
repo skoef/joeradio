@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	"joeradio/mocks"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/zmb3/spotify/v2"
+
+	"joeradio/mocks"
 )
 
 func TestGetFullPlaylist(t *testing.T) {
@@ -55,6 +55,6 @@ func TestGetFullPlaylist(t *testing.T) {
 
 		pl, err := getFullPlaylist(t.Context(), client, testPlaylist)
 		require.NoError(t, err)
-		assert.Equal(t, pl.Len(), 2)
+		assert.Equal(t, 2, pl.Len())
 	})
 }

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"joeradio/internal"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -18,6 +17,8 @@ import (
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
+
+	"joeradio/internal"
 )
 
 const (
@@ -88,6 +89,7 @@ func main() {
 	client = <-ch
 
 	var err error
+
 	playlistCache, err = getFullPlaylist(ctx, client, playlistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
@@ -100,6 +102,7 @@ func main() {
 	for {
 		if err := run(ctx); err != nil {
 			logger.Warn("failed to complete run", slog.String("error", err.Error()))
+
 			if errors.Is(err, errRefreshedToken) {
 				logger.Debug("retrying immediately")
 				continue
@@ -135,7 +138,7 @@ func run(ctx context.Context) error {
 	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
 	// to 70's, 80's and 90's music
 	// this prevents us from getting remixes from later years in the results
-	results, err := client.Search(ctx, fmt.Sprintf("%s year:1970-1999", title), spotify.SearchTypeTrack, spotify.Limit(1))
+	results, err := client.Search(ctx, title+" year:1970-1999", spotify.SearchTypeTrack, spotify.Limit(1))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			logger.Warn("token expired, trying to refresh")
@@ -160,16 +163,21 @@ func run(ctx context.Context) error {
 
 	if playlistCache.Has(string(track.ID)) {
 		logger.Info("track already in playlist")
+
 		lastTitle = title
+
 		return nil
 	}
 
 	logger.Debug("adding track to playlist")
+
 	_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
 	if err == nil {
 		len := playlistCache.Add(string(track.ID))
 		logger.Info("added track to playlist", slog.Int("length", len))
+
 		lastTitle = title
+
 		return nil
 	}
 
@@ -267,7 +275,7 @@ func GetStreamTitle(streamUrl string) (string, error) {
 
 func getStreamMetas(streamUrl string) ([]byte, error) {
 	client := &http.Client{}
-	req, _ := http.NewRequest(http.MethodGet, streamUrl, nil)
+	req, _ := http.NewRequest(http.MethodGet, streamUrl, http.NoBody)
 	req.Header.Set("Icy-Metadata", "1")
 
 	resp, err := client.Do(req)
@@ -322,12 +330,14 @@ func completeAuth(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Couldn't get token", http.StatusForbidden)
 		slog.Error("failed to parse token", slog.String("error", err.Error()))
+
 		return
 	}
 
 	if st := r.FormValue("state"); st != state {
 		http.NotFound(w, r)
 		slog.Error("state mismatch", slog.String("expected", state), slog.String("got", st))
+
 		return
 	}
 
