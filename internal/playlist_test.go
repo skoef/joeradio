@@ -7,6 +7,8 @@ import (
 )
 
 func TestPlayList(t *testing.T) {
+	t.Parallel()
+
 	pl := NewPlaylist("foo", "bar", "bar")
 
 	assert.Len(t, pl.list, 2)

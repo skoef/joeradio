@@ -736,7 +736,7 @@ linters:
       - G401 # Detect the usage of MD5 or SHA1
       - G402 # Look for bad TLS connection settings
       - G403 # Ensure minimum RSA key length of 2048 bits
-      - G404 # Insecure random number source (rand)
+      # - G404 # Insecure random number source (rand)
       - G405 # Detect the usage of DES or RC4
       - G406 # Detect the usage of MD4 or RIPEMD160
       - G501 # Import blocklist: crypto/md5

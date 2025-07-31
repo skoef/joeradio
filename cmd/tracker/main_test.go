@@ -13,10 +13,14 @@ import (
 )
 
 func TestGetFullPlaylist(t *testing.T) {
+	t.Parallel()
+
 	testPlaylist := "foo"
 	testPlaylistID := spotify.ID(testPlaylist)
 
 	t.Run("API error", func(t *testing.T) {
+		t.Parallel()
+
 		client := mocks.NewMockSpotifyClient(t)
 
 		someError := errors.New("API error")
@@ -31,6 +35,8 @@ func TestGetFullPlaylist(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
 		client := mocks.NewMockSpotifyClient(t)
 
 		// first call
@@ -57,4 +63,15 @@ func TestGetFullPlaylist(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, pl.Len())
 	})
+}
+
+func TestArtistNames(t *testing.T) {
+	t.Parallel()
+
+	names := []spotify.SimpleArtist{
+		{Name: "Whitney Houston"},
+		{Name: "Pia Zadora"},
+	}
+
+	assert.Equal(t, "Whitney Houston,Pia Zadora", artistNames(names))
 }

@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	streamUrl   = "https://icecast-qmusicnl-cdp.triple-it.nl/Joe_nl_high.aac"
+	streamURL   = "https://icecast-qmusicnl-cdp.triple-it.nl/Joe_nl_high.aac"
 	playlistID  = "4t9w0OuAKt9mMEY27m1IDJ"
 	redirectURI = "http://localhost:8080/callback"
 )
@@ -40,7 +41,7 @@ var (
 	state string
 	ch    = make(chan *spotify.Client)
 
-	ignore = []string{
+	ignoreTitles = []string{
 		"JOE nieuws",
 		"Ad break",
 	}
@@ -51,6 +52,8 @@ var (
 	lastTitle     string
 )
 
+// SpotifyClient describes the functions we use on the spotify.Client so we can
+// mock them for testing
 type SpotifyClient interface {
 	Search(ctx context.Context, query string, t spotify.SearchType, opts ...spotify.RequestOption) (*spotify.SearchResult, error)
 	AddTracksToPlaylist(ctx context.Context, playlistID spotify.ID, trackIDs ...spotify.ID) (snapshotID string, err error)
@@ -97,7 +100,7 @@ func main() {
 	}
 
 	logger.Debug("loaded playlist", slog.Int("items", playlistCache.Len()))
-	logger.Debug("start tracking icecast", slog.String("url", streamUrl))
+	logger.Debug("start tracking icecast", slog.String("url", streamURL))
 
 	for {
 		if err := run(ctx); err != nil {
@@ -114,7 +117,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	title, err := GetStreamTitle(streamUrl)
+	title, err := GetStreamTitle(streamURL)
 	if err != nil {
 		return err
 	}
@@ -124,7 +127,9 @@ func run(ctx context.Context) error {
 	}
 
 	logger := slog.With(slog.String("title", title))
-	if shouldIgnoreTitle(title) {
+
+	// should we ignore this title?
+	if slices.Contains(ignoreTitles, title) {
 		logger.Info("ignoring")
 		return nil
 	}
@@ -173,8 +178,8 @@ func run(ctx context.Context) error {
 
 	_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
 	if err == nil {
-		len := playlistCache.Add(string(track.ID))
-		logger.Info("added track to playlist", slog.Int("length", len))
+		playlistLen := playlistCache.Add(string(track.ID))
+		logger.Info("added track to playlist", slog.Int("length", playlistLen))
 
 		lastTitle = title
 
@@ -241,18 +246,8 @@ func artistNames(artists []spotify.SimpleArtist) string {
 	return strings.Join(names, ",")
 }
 
-func shouldIgnoreTitle(title string) bool {
-	for _, ig := range ignore {
-		if title == ig {
-			return true
-		}
-	}
-
-	return false
-}
-
-func GetStreamTitle(streamUrl string) (string, error) {
-	m, err := getStreamMetas(streamUrl)
+func GetStreamTitle(streamURL string) (string, error) {
+	m, err := getStreamMetas(streamURL)
 	if err != nil {
 		return "", err
 	}
@@ -273,15 +268,21 @@ func GetStreamTitle(streamUrl string) (string, error) {
 	return "", errors.New("no stream title")
 }
 
-func getStreamMetas(streamUrl string) ([]byte, error) {
+func getStreamMetas(streamURL string) ([]byte, error) {
 	client := &http.Client{}
-	req, _ := http.NewRequest(http.MethodGet, streamUrl, http.NoBody)
+	req, _ := http.NewRequest(http.MethodGet, streamURL, http.NoBody)
 	req.Header.Set("Icy-Metadata", "1")
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("could not close body", slog.String("error", err.Error()))
+		}
+	}()
 
 	// We sent "Icy-MetaData", we should have a "icy-metaint" in return
 	ih := resp.Header.Get("Icy-Metaint")
