@@ -33,10 +33,7 @@ var (
 	errCurrentlyNoTitle = errors.New("currently nothing is playing")
 	errSongNotFound     = errors.New("song not found on spotify")
 
-	auth = spotifyauth.New(spotifyauth.WithRedirectURL(redirectURI),
-		spotifyauth.WithClientID(os.Getenv("SPOTIFY_CLIENT_ID")),
-		spotifyauth.WithClientSecret(os.Getenv("SPOTIFY_CLIENT_SECRET")),
-		spotifyauth.WithScopes(spotifyauth.ScopePlaylistModifyPublic))
+	auth *spotifyauth.Authenticator
 
 	state string
 	ch    = make(chan *spotify.Client)
@@ -73,6 +70,21 @@ func main() {
 	// seed RNG and create a state for authentication
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 	state = strconv.Itoa(rand.Int())
+
+	// set up authenticator
+	// we will use that once for getting a token and then afterwards for refreshing
+	// the existing token
+	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
+	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
+	if clientID == "" || clientSecret == "" {
+		logger.Error("set both SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables")
+		os.Exit(1)
+	}
+
+	auth = spotifyauth.New(spotifyauth.WithRedirectURL(redirectURI),
+		spotifyauth.WithClientID(clientID),
+		spotifyauth.WithClientSecret(clientSecret),
+		spotifyauth.WithScopes(spotifyauth.ScopePlaylistModifyPublic))
 
 	// first start an HTTP server
 	http.HandleFunc("/callback", completeAuth)
