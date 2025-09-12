@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
@@ -70,6 +71,12 @@ func main() {
 	// seed RNG and create a state for authentication
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 	state = strconv.Itoa(rand.Int())
+
+	// try to load .env
+	err := godotenv.Load()
+	if err != nil {
+		slog.Warn("env not loaded", slog.String("error", err.Error()))
+	}
 
 	// set up authenticator
 	// we will use that once for getting a token and then afterwards for refreshing
