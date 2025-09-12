@@ -29,6 +29,7 @@ func TestGetFullPlaylist(t *testing.T) {
 
 		pl, err := getFullPlaylist(t.Context(), client, testPlaylist)
 		assert.Nil(t, pl)
+
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, err, someError)
 		}
@@ -42,6 +43,7 @@ func TestGetFullPlaylist(t *testing.T) {
 		// first call
 		firstReponse := &spotify.PlaylistItemPage{}
 		firstTrack := &spotify.FullTrack{}
+
 		firstTrack.ID = spotify.ID("track1")
 		firstReponse.Items = []spotify.PlaylistItem{{Track: spotify.PlaylistItemTrack{Track: firstTrack}}}
 		firstReponse.Total = 2
@@ -52,6 +54,7 @@ func TestGetFullPlaylist(t *testing.T) {
 		// second call
 		secondReponse := &spotify.PlaylistItemPage{}
 		secondTrack := &spotify.FullTrack{}
+
 		secondTrack.ID = spotify.ID("track2")
 		secondReponse.Items = []spotify.PlaylistItem{{Track: spotify.PlaylistItemTrack{Track: secondTrack}}}
 		secondReponse.Total = 2

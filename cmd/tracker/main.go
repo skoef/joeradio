@@ -1,3 +1,4 @@
+// Package main contains the runtime for the the Joe Radio tracker
 package main
 
 import (
@@ -70,6 +71,7 @@ func main() {
 
 	// seed RNG and create a state for authentication
 	rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	state = strconv.Itoa(rand.Int())
 
 	// try to load .env
@@ -82,6 +84,7 @@ func main() {
 	// we will use that once for getting a token and then afterwards for refreshing
 	// the existing token
 	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
+
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
 	if clientID == "" || clientSecret == "" {
 		logger.Error("set both SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables")
@@ -97,6 +100,8 @@ func main() {
 	http.HandleFunc("/callback", completeAuth)
 
 	go func() {
+		//nolint:gosec // this is a very short-lived webserver
+		// TODO: create separate http server and close this when auth happened
 		err := http.ListenAndServe(":8080", nil)
 		if err != nil {
 			slog.Error("failed serving oAuth callback", slog.String("error", err.Error()))
@@ -109,8 +114,6 @@ func main() {
 
 	// wait for auth to complete
 	client = <-ch
-
-	var err error
 
 	playlistCache, err = getFullPlaylist(ctx, client, playlistID)
 	if err != nil {
@@ -136,7 +139,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	title, err := GetStreamTitle(streamURL)
+	title, err := GetStreamTitle(ctx, streamURL)
 	if err != nil {
 		return err
 	}
@@ -179,6 +182,7 @@ func run(ctx context.Context) error {
 	}
 
 	track := results.Tracks.Tracks[0]
+
 	logger = logger.With(slog.String("track_id", string(track.ID)))
 
 	logger.Info("found track on spotify",
@@ -265,8 +269,8 @@ func artistNames(artists []spotify.SimpleArtist) string {
 	return strings.Join(names, ",")
 }
 
-func GetStreamTitle(streamURL string) (string, error) {
-	m, err := getStreamMetas(streamURL)
+func GetStreamTitle(ctx context.Context, streamURL string) (string, error) {
+	m, err := getStreamMetas(ctx, streamURL)
 	if err != nil {
 		return "", err
 	}
@@ -287,9 +291,9 @@ func GetStreamTitle(streamURL string) (string, error) {
 	return "", errors.New("no stream title")
 }
 
-func getStreamMetas(streamURL string) ([]byte, error) {
+func getStreamMetas(ctx context.Context, streamURL string) ([]byte, error) {
 	client := &http.Client{}
-	req, _ := http.NewRequest(http.MethodGet, streamURL, http.NoBody)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, streamURL, http.NoBody)
 	req.Header.Set("Icy-Metadata", "1")
 
 	resp, err := client.Do(req)
@@ -365,6 +369,8 @@ func completeAuth(w http.ResponseWriter, r *http.Request) {
 
 	// use the token to get an authenticated client
 	client := spotify.New(auth.Client(r.Context(), authToken))
+
 	_, _ = fmt.Fprintf(w, "Login Completed!")
+
 	ch <- client
 }

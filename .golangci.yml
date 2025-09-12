@@ -80,7 +80,7 @@ linters:
     - unused # Checks Go code for unused constants, variables, functions and types.
     - usestdlibvars # A linter that detect the possibility to use variables/constants from the Go standard library.
     - usetesting # Reports wheter a function can be replaced by an alternative from the testing package.
-    - wsl # Add or remove empty lines.
+    - wsl_v5 # Add or remove empty lines.
 
   # Disable specific linter
   # https://golangci-lint.run/usage/linters/#disabled-by-default
@@ -2002,84 +2002,70 @@ linters:
       # Default: true
       generated-is-used: true
 
-    wsl:
-      # Do strict checking when assigning from append (x = append(x, y)).
-      # If this is set to true - the append call must append either a variable
-      # assigned, called or used on the line above.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#strict-append
+    wsl_v5:
+      # Allow cuddling a variable if it's used first in the immediate following block,
+      # even if the statement with the block doesn't use the variable.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#configuration
       # Default: true
-      strict-append: true
+      allow-first-in-block: true
 
-      # Allows assignments to be cuddled with variables used in calls on
-      # line above and calls to be cuddled with assignments of variables
-      # used in call on line above.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-assign-and-call
-      # Default: true
-      allow-assign-and-call: true
-
-      # Allows assignments to be cuddled with anything.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-assign-and-anything
+      # Same as above,
+      # but allows cuddling if the variable is used anywhere in the following (or nested) block.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#configuration
       # Default: false
-      allow-assign-and-anything: false
+      allow-whole-block: false
 
-      # Allows cuddling to assignments even if they span over multiple lines.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-multiline-assign
-      # Default: true
-      allow-multiline-assign: true
+      # If a block contains more than this number of lines,
+      # the branch statement needs to be separated by whitespace.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#configuration
+      # Default: 2
+      branch-max-lines: 2
 
-      # If the number of lines in a case block is equal to or lager than this number,
-      # the case *must* end white a newline.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#force-case-trailing-whitespace
+      # If set to a non-negative number,
+      # case blocks need to end with whitespace if exceeding this number
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#configuration
       # Default: 0
-      force-case-trailing-whitespace: 0
+      case-max-lines: 2
 
-      # Allow blocks to end with comments.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-trailing-comment
-      # Default: false
-      allow-trailing-comment: false
+      # Default checks to use.
+      # Can be `all`, `none`, `default` or empty.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#checks-and-configuration
+      # Default: ""
+      default: all
 
-      # Allow multiple comments in the beginning of a block separated with newline.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-separated-leading-comment
-      # Default: false
-      allow-separated-leading-comment: false
+      # Enabled checks.
+      # Will be additive to any presets.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#checks-and-configuration
+      # Default: []
+      enable:
+        - assign
+        - branch
+        - decl
+        - defer
+        - expr
+        - for
+        - go
+        - if
+        - inc-dec
+        - label
+        - range
+        - return
+        - select
+        - send
+        - switch
+        - type-switch
+        - append
+        - assign-exclusive
+        - assign-expr
+        - err
+        - leading-whitespace
+        - trailing-whitespace
 
-      # Allow multiple var/declaration statements to be cuddled.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-cuddle-declarations
-      # Default: false
-      allow-cuddle-declarations: false
-
-      # A list of call idents that everything can be cuddled with.
-      # Defaults: [ "Lock", "RLock" ]
-      allow-cuddle-with-calls: [ "Lock", "RLock" ]
-
-      # AllowCuddleWithRHS is a list of right hand side variables that is allowed
-      # to be cuddled with anything.
-      # Defaults: [ "Unlock", "RUnlock" ]
-      allow-cuddle-with-rhs: [ "Unlock", "RUnlock" ]
-
-      # Allow cuddling with any block as long as the variable is used somewhere in
-      # the block.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#allow-cuddle-used-in-block
-      # Default: false
-      allow-cuddle-used-in-block: true
-
-      # Causes an error when an If statement that checks an error variable doesn't
-      # cuddle with the assignment of that variable.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#force-err-cuddling
-      # Default: false
-      force-err-cuddling: true
-
-      # When force-err-cuddling is enabled this is a list of names
-      # used for error variables to check for in the conditional.
-      # Default: [ "err" ]
-      error-variable-names: [ "err" ]
-
-      # Causes an error if a short declaration (:=) cuddles with anything other than
-      # another short declaration.
-      # This logic overrides force-err-cuddling among others.
-      # https://github.com/bombsimon/wsl/blob/HEAD/doc/configuration.md#force-short-decl-cuddling
-      # Default: false
-      force-short-decl-cuddling: false
+      # Disable checks.
+      # Will be subtractive to any preset.
+      # https://github.com/bombsimon/wsl/tree/main?tab=readme-ov-file#checks-and-configuration
+      # Default: []
+      disable: []
 
     # The custom section can be used to define linter plugins to be loaded at runtime.
     # See README documentation for more info.
