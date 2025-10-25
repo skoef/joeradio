@@ -2,8 +2,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,10 +9,10 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"slices"
 	"strconv"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
@@ -24,30 +22,23 @@ import (
 )
 
 const (
-	streamURL   = "https://icecast-qmusicnl-cdp.triple-it.nl/Joe_nl_high.aac"
-	playlistID  = "4t9w0OuAKt9mMEY27m1IDJ"
-	redirectURI = "http://localhost:8080/callback"
+	websocketURL = "wss://socket.qmusic.be/api/502/ltfn4msd/websocket"
+	playlistID   = "4t9w0OuAKt9mMEY27m1IDJ"
+	redirectURI  = "http://localhost:8080/callback"
 )
 
 var (
-	errRefreshedToken   = errors.New("token was refreshed")
-	errCurrentlyNoTitle = errors.New("currently nothing is playing")
-	errSongNotFound     = errors.New("song not found on spotify")
+	errRefreshedToken = errors.New("token was refreshed")
+	errSongNotFound   = errors.New("song not found on spotify")
 
 	auth *spotifyauth.Authenticator
 
 	state string
 	ch    = make(chan *spotify.Client)
 
-	ignoreTitles = []string{
-		"JOE nieuws",
-		"Ad break",
-	}
-
 	client        internal.SpotifyClient
 	authToken     *oauth2.Token
 	playlistCache *internal.Playlist
-	lastTitle     string
 )
 
 func main() {
@@ -101,11 +92,12 @@ func main() {
 	}()
 
 	url := auth.AuthURL(state)
-	fmt.Println("Please log in to Spotify by visiting the following page in your browser:", url)
+	fmt.Printf("Please log in to Spotify by visiting the following page in your browser:\n\n%s\n\n", url)
 
 	// wait for auth to complete
 	client = <-ch
 
+	// keep a local cache of the playlist so we can easily check if a song is already in the playlist
 	playlistCache, err = internal.GetFullPlaylist(ctx, client, playlistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
@@ -113,44 +105,100 @@ func main() {
 	}
 
 	logger.Debug("loaded playlist", slog.Int("items", playlistCache.Len()))
-	logger.Debug("start tracking icecast", slog.String("url", streamURL))
 
-	for {
-		if err := run(ctx); err != nil {
+	songs := make(chan *internal.Song)
+
+	go func() {
+		// close the channel if we're stopping this loop
+		defer close(songs)
+
+		handleWebsocket(ctx, songs)
+	}()
+
+	for song := range songs {
+		if err := run(ctx, song); err != nil {
 			logger.Warn("failed to complete run", slog.String("error", err.Error()))
 
 			if errors.Is(err, errRefreshedToken) {
 				logger.Debug("retrying immediately")
-				continue
+
+				if err := run(ctx, song); err != nil {
+					logger.Warn("failed to complete run", slog.String("error", err.Error()))
+				}
 			}
 		}
+	}
 
-		time.Sleep(time.Minute)
+	slog.Warn("main loop stopped")
+}
+
+// handleWebsocket opens a websocket, joins a channel and keeps reading messages
+// if the websocket closes, it re-opens the websocket
+func handleWebsocket(ctx context.Context, songs chan<- *internal.Song) {
+	logger := slog.With("func", "handleWebsocket")
+
+	// keep retrying the websocket
+	for {
+		c, _, err := websocket.DefaultDialer.DialContext(ctx, websocketURL, nil)
+		if err != nil {
+			logger.Error("failed to connect websocket", slog.String("error", err.Error()))
+			return
+		}
+
+		defer func() {
+			if err = c.Close(); err != nil {
+				logger.Warn("could not close websocket", slog.String("error", err.Error()))
+			}
+		}()
+
+		// keep reading messages
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				// check if the connection was closed
+				var closeError *websocket.CloseError
+				if errors.As(err, &closeError) {
+					// when connection was closed, reopen after 10 seconds
+					logger.Warn("connection was closed, reconnecting",
+						slog.Int("code", closeError.Code),
+						slog.String("error", closeError.Text))
+					time.Sleep(time.Second * 10)
+					break
+				}
+
+				// other issue
+				logger.Error("failed to read message",
+					slog.String("error", err.Error()))
+				return
+			}
+
+			switch string(message) {
+			case "o": // welcome message
+				logger.Debug("received welcome")
+
+				if err = c.WriteMessage(websocket.TextMessage, []byte(internal.JoinMessage)); err != nil {
+					logger.Error("failed to join",
+						slog.String("error", err.Error()))
+					return
+				}
+
+			case "h": // heartbeat, ignore
+			default:
+				song, err := internal.ParseAMessage(message)
+				if err != nil {
+					logger.Error("failed to parse message",
+						slog.String("error", err.Error()))
+				}
+
+				songs <- song
+			}
+		}
 	}
 }
 
-func run(ctx context.Context) error {
-	title, err := GetStreamTitle(ctx, streamURL)
-	if err != nil {
-		return err
-	}
-
-	if title == "" {
-		return errCurrentlyNoTitle
-	}
-
+func run(ctx context.Context, song *internal.Song) error {
+	title := song.String()
 	logger := slog.With(slog.String("title", title))
-
-	// should we ignore this title?
-	if slices.Contains(ignoreTitles, title) {
-		logger.Info("ignoring")
-		return nil
-	}
-
-	if title == lastTitle {
-		logger.Debug("same song, waiting")
-		return nil
-	}
 
 	logger.Info("search title on spotify")
 	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
@@ -168,7 +216,6 @@ func run(ctx context.Context) error {
 	}
 
 	if len(results.Tracks.Tracks) == 0 {
-		lastTitle = title
 		return errSongNotFound
 	}
 
@@ -183,8 +230,6 @@ func run(ctx context.Context) error {
 	if playlistCache.Has(string(track.ID)) {
 		logger.Info("track already in playlist")
 
-		lastTitle = title
-
 		return nil
 	}
 
@@ -194,8 +239,6 @@ func run(ctx context.Context) error {
 	if err == nil {
 		playlistLen := playlistCache.Add(string(track.ID))
 		logger.Info("added track to playlist", slog.Int("length", playlistLen))
-
-		lastTitle = title
 
 		return nil
 	}
@@ -222,84 +265,6 @@ func refreshToken(ctx context.Context) error {
 	client = spotify.New(auth.Client(ctx, tok))
 
 	return errRefreshedToken
-}
-
-func GetStreamTitle(ctx context.Context, streamURL string) (string, error) {
-	m, err := getStreamMetas(ctx, streamURL)
-	if err != nil {
-		return "", err
-	}
-	// Should be at least "StreamTitle=' '"
-	if len(m) < 15 {
-		return "", nil
-	}
-	// Split meta by ';', trim it and search for StreamTitle
-	for _, m := range bytes.Split(m, []byte(";")) {
-		m = bytes.Trim(m, " \t")
-		if !bytes.Equal(m[0:13], []byte("StreamTitle='")) {
-			continue
-		}
-
-		return string(m[13 : len(m)-1]), nil
-	}
-
-	return "", errors.New("no stream title")
-}
-
-func getStreamMetas(ctx context.Context, streamURL string) ([]byte, error) {
-	client := &http.Client{}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, streamURL, http.NoBody)
-	req.Header.Set("Icy-Metadata", "1")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			slog.Warn("could not close body", slog.String("error", err.Error()))
-		}
-	}()
-
-	// We sent "Icy-MetaData", we should have a "icy-metaint" in return
-	ih := resp.Header.Get("Icy-Metaint")
-	if ih == "" {
-		return nil, errors.New("no metadata")
-	}
-	// "icy-metaint" is how often (in bytes) should we receive the meta
-	ib, err := strconv.Atoi(ih)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := bufio.NewReader(resp.Body)
-
-	// skip the first mp3 frame
-	c, err := reader.Discard(ib)
-	if err != nil {
-		return nil, err
-	}
-	// If we didn't received ib bytes, the stream is ended
-	if c != ib {
-		return nil, errors.New("stream ended prematurally")
-	}
-
-	// get the size byte, that is the metadata length in bytes / 16
-	sb, err := reader.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-
-	ms := int(sb * 16)
-
-	// read the ms first bytes it will contain metadata
-	m, err := reader.Peek(ms)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
 }
 
 func completeAuth(w http.ResponseWriter, r *http.Request) {
