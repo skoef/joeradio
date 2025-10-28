@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"strings"
 
 	"github.com/zmb3/spotify/v2"
 )
@@ -39,4 +40,14 @@ func GetFullPlaylist(ctx context.Context, client SpotifyClient, playlistID strin
 	}
 
 	return playlist, nil
+}
+
+// ArtistNames returns a concatenated list of artist names
+func ArtistNames(artists []spotify.SimpleArtist) string {
+	names := make([]string, len(artists))
+	for i, a := range artists {
+		names[i] = a.Name
+	}
+
+	return strings.Join(names, ",")
 }

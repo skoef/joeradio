@@ -13,7 +13,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -179,7 +178,7 @@ func run(ctx context.Context) error {
 
 	logger.Info("found track on spotify",
 		slog.String("name", track.Name),
-		slog.String("artists", artistNames(track.Artists)))
+		slog.String("artists", internal.ArtistNames(track.Artists)))
 
 	if playlistCache.Has(string(track.ID)) {
 		logger.Info("track already in playlist")
@@ -223,15 +222,6 @@ func refreshToken(ctx context.Context) error {
 	client = spotify.New(auth.Client(ctx, tok))
 
 	return errRefreshedToken
-}
-
-func artistNames(artists []spotify.SimpleArtist) string {
-	names := make([]string, len(artists))
-	for i, a := range artists {
-		names[i] = a.Name
-	}
-
-	return strings.Join(names, ",")
 }
 
 func GetStreamTitle(ctx context.Context, streamURL string) (string, error) {
