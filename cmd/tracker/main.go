@@ -45,19 +45,11 @@ var (
 		"Ad break",
 	}
 
-	client        SpotifyClient
+	client        internal.SpotifyClient
 	authToken     *oauth2.Token
 	playlistCache *internal.Playlist
 	lastTitle     string
 )
-
-// SpotifyClient describes the functions we use on the spotify.Client so we can
-// mock them for testing
-type SpotifyClient interface {
-	Search(ctx context.Context, query string, t spotify.SearchType, opts ...spotify.RequestOption) (*spotify.SearchResult, error)
-	AddTracksToPlaylist(ctx context.Context, playlistID spotify.ID, trackIDs ...spotify.ID) (snapshotID string, err error)
-	GetPlaylistItems(ctx context.Context, playlistID spotify.ID, opts ...spotify.RequestOption) (*spotify.PlaylistItemPage, error)
-}
 
 func main() {
 	// set up logging
@@ -115,7 +107,7 @@ func main() {
 	// wait for auth to complete
 	client = <-ch
 
-	playlistCache, err = getFullPlaylist(ctx, client, playlistID)
+	playlistCache, err = internal.GetFullPlaylist(ctx, client, playlistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -216,33 +208,6 @@ func run(ctx context.Context) error {
 	}
 
 	return err
-}
-
-// getFullPlaylist iterates over the playlist item pages returned by the API until
-// all items are fetched
-func getFullPlaylist(ctx context.Context, client SpotifyClient, playlistID string) (*internal.Playlist, error) {
-	playlist := internal.NewPlaylist()
-	offset := 0
-
-	for {
-		playlistItems, err := client.GetPlaylistItems(ctx, spotify.ID(playlistID), spotify.Offset(offset))
-		if err != nil {
-			return nil, err
-		}
-
-		offset += len(playlistItems.Items)
-
-		for _, item := range playlistItems.Items {
-			playlist.Add(string(item.Track.Track.ID))
-		}
-
-		// are we done yet?
-		if offset >= int(playlistItems.Total) {
-			break
-		}
-	}
-
-	return playlist, nil
 }
 
 func refreshToken(ctx context.Context) error {
