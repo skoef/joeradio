@@ -23,7 +23,6 @@ import (
 
 const (
 	websocketURL = "wss://socket.qmusic.be/api/502/ltfn4msd/websocket"
-	playlistID   = "4t9w0OuAKt9mMEY27m1IDJ"
 	redirectURI  = "http://localhost:8080/callback"
 )
 
@@ -98,7 +97,7 @@ func main() {
 	client = <-ch
 
 	// keep a local cache of the playlist so we can easily check if a song is already in the playlist
-	playlistCache, err = internal.GetFullPlaylist(ctx, client, playlistID)
+	playlistCache, err = internal.GetFullPlaylist(ctx, client, internal.PlaylistID)
 	if err != nil {
 		slog.Error("failed to fetch playlist", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -235,7 +234,7 @@ func run(ctx context.Context, song *internal.Song) error {
 
 	logger.Debug("adding track to playlist")
 
-	_, err = client.AddTracksToPlaylist(ctx, playlistID, track.ID)
+	_, err = client.AddTracksToPlaylist(ctx, internal.PlaylistID, track.ID)
 	if err == nil {
 		playlistLen := playlistCache.Add(string(track.ID))
 		logger.Info("added track to playlist", slog.Int("length", playlistLen))
