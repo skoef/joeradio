@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -27,8 +28,12 @@ const (
 )
 
 var (
+	// errors
 	errRefreshedToken = errors.New("token was refreshed")
 	errSongNotFound   = errors.New("song not found on spotify")
+
+	// command line flags
+	debugLogging bool
 
 	auth *spotifyauth.Authenticator
 
@@ -41,9 +46,16 @@ var (
 )
 
 func main() {
+	flag.BoolVar(&debugLogging, "debug", false, "enable debug logging")
+
+	flag.Parse()
+
 	// set up logging
 	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: slog.LevelInfo,
+	}
+	if debugLogging {
+		logOpts.Level = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, logOpts))
 	slog.SetDefault(logger)
