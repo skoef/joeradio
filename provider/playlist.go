@@ -1,5 +1,4 @@
-// Package internal holds tooling
-package internal
+package provider
 
 import (
 	"log/slog"

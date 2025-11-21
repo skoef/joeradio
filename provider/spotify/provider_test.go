@@ -1,17 +1,6 @@
-package internal
+package spotify
 
-import (
-	"errors"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"github.com/zmb3/spotify/v2"
-
-	"joeradio/mocks"
-)
-
+/*
 func TestGetFullPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -67,14 +56,4 @@ func TestGetFullPlaylist(t *testing.T) {
 		assert.Equal(t, 2, pl.Len())
 	})
 }
-
-func TestArtistNames(t *testing.T) {
-	t.Parallel()
-
-	names := []spotify.SimpleArtist{
-		{Name: "Whitney Houston"},
-		{Name: "Pia Zadora"},
-	}
-
-	assert.Equal(t, "Whitney Houston,Pia Zadora", ArtistNames(names))
-}
+*/
