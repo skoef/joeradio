@@ -16,9 +16,11 @@ At least that is the idea!
 ## Running it
 
 Make sure you have a developer account with Spotify, create a public or private
-playlist, replace the playlist ID in `cmd/tracker/main.go` and put you Spotify
-client ID and secret in `.env` or export in your environment. Then start the tracker
+playlist, put you Spotify client ID and secret in `.env` or export in your
+environment. Then start the tracker with:
 
 ```bash
-go run ./cmd/tracker
+go run ./cmd/tracker \
+    -provider spotify \
+    -spotify-playlist-id <id-of-your-playlist>
 ```

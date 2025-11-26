@@ -1,4 +1,4 @@
-package internal
+package source
 
 import (
 	"os"
@@ -17,6 +17,6 @@ func TestParseAMessage(t *testing.T) {
 	song, err := ParseAMessage(data)
 	require.NoError(t, err)
 
-	assert.Equal(t, "WHITESNAKE", song.Artist)
-	assert.Equal(t, "Here I Go Again", song.Title)
+	assert.Equal(t, "WHITESNAKE", song.GetArtists()[0])
+	assert.Equal(t, "Here I Go Again", song.GetTitle())
 }

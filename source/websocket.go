@@ -1,4 +1,4 @@
-package internal
+package source
 
 import (
 	"encoding/json"
@@ -9,13 +9,17 @@ import (
 )
 
 const (
+	// WebsocketURL is the URL for Joe Radio NL's websocket
+	// This URL is also used in the "listen now" popup on their website
+	WebsocketURL = "wss://socket.qmusic.be/api/502/ltfn4msd/websocket"
+
 	// JoinMessage is the message we send to JoeRadio to "join" the subscription
 	// for plays (songs) and send us already 1 song back
 	JoinMessage = `["{\"action\":\"join\",\"id\":0,\"sub\":{\"station\":\"joe_nl\",\"entity\":\"plays\",\"action\":\"play\"},\"backlog\":1}"]`
 )
 
 // ParseAMessage parses an "a" message coming from the JoeRadio websocket stream
-func ParseAMessage(input []byte) (*Song, error) {
+func ParseAMessage(input []byte) (*SimpleTrack, error) {
 	msg := strings.TrimSpace(string(input))
 	if !strings.HasPrefix(msg, "a[") || !strings.HasSuffix(msg, "]") {
 		return nil, errors.New("not an A message")
@@ -39,10 +43,32 @@ func ParseAMessage(input []byte) (*Song, error) {
 		return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
-	return &Song{
-		Artist: data.Data.Artist.Name,
-		Title:  data.Data.Title,
+	return &SimpleTrack{
+		artist: data.Data.Artist.Name,
+		title:  data.Data.Title,
 	}, nil
+}
+
+// SimpleTrack implements the provider.Track interface
+type SimpleTrack struct {
+	artist string
+	title  string
+}
+
+// GetID should return the track's ID but it has none
+func (SimpleTrack) GetID() string {
+	// not implemented
+	return ""
+}
+
+// GetTitle returns the track's title
+func (d SimpleTrack) GetTitle() string {
+	return d.title
+}
+
+// GetArtists returns the track's artists
+func (d SimpleTrack) GetArtists() []string {
+	return []string{d.artist}
 }
 
 type websocketResponse struct {
@@ -57,14 +83,4 @@ type websocketData struct {
 			Name string
 		}
 	}
-}
-
-// Song holds song information relevant to searching on spotify
-type Song struct {
-	Artist string
-	Title  string
-}
-
-func (s Song) String() string {
-	return s.Artist + " - " + s.Title
 }
