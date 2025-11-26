@@ -33,7 +33,7 @@ type Client interface {
 	GetPlaylistItems(ctx context.Context, playlistID spotify.ID, opts ...spotify.RequestOption) (*spotify.PlaylistItemPage, error)
 }
 
-// Spotify implements the Provider interface
+// Spotify implements the Provider interface for Spotify
 type Spotify struct {
 	client        Client
 	authenticator *spotifyauth.Authenticator
@@ -136,6 +136,8 @@ func (s *Spotify) GetFullPlaylist(ctx context.Context) (*provider.Playlist, erro
 }
 
 // Search performs query and returns the results
+//
+//nolint:ireturn // the interface expects us to return this type
 func (s *Spotify) Search(ctx context.Context, query string) (provider.Track, error) {
 	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
 	// to 70's, 80's and 90's music
@@ -145,6 +147,7 @@ func (s *Spotify) Search(ctx context.Context, query string) (provider.Track, err
 		if errors.Is(err, context.Canceled) {
 			return nil, s.refreshToken(ctx)
 		}
+
 		return nil, fmt.Errorf("could not search: %w", err)
 	}
 
@@ -152,7 +155,7 @@ func (s *Spotify) Search(ctx context.Context, query string) (provider.Track, err
 		return nil, provider.ErrSongNotFound
 	}
 
-	return newTrack(results.Tracks.Tracks[0]), nil
+	return newTrack(&results.Tracks.Tracks[0]), nil
 }
 
 // AddToPlaylist adds given track to playlist

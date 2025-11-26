@@ -15,6 +15,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"joeradio/provider"
+	"joeradio/provider/applemusic"
 	"joeradio/provider/spotify"
 	"joeradio/source"
 )
@@ -41,6 +42,8 @@ func mainE() error {
 	}
 
 	config := provider.NewDefaultConfig()
+	flag.StringVar(&config.AppleMusicAPIToken, "apple-music-api-token", os.Getenv("APPLE_MUSIC_API_TOKEN"), "apple music API token")
+	flag.StringVar(&config.AppleMusicPlaylistID, "apple-music-playlist-id", os.Getenv("APPLE_MUSIC_PLAYLIST_ID"), "apple music playlist ID")
 	flag.StringVar(&config.SpotifyTokenPath, "spotify-token-path", config.SpotifyTokenPath, "path for caching spotify authentication token")
 	flag.StringVar(&config.SpotifyClientID, "spotify-client-id", os.Getenv("SPOTIFY_CLIENT_ID"), "spotify client ID")
 	flag.StringVar(&config.SpotifyClientSecret, "spotify-client-secret", os.Getenv("SPOTIFY_CLIENT_SECRET"), "spotify client secret")
@@ -70,8 +73,16 @@ func mainE() error {
 
 	ctx := context.Background()
 
-	// create spotify provider
-	prov, err = spotify.New(config)
+	// setup provider
+	switch config.Provider {
+	case "applemusic":
+		prov, err = applemusic.New(config)
+	case "spotify":
+		prov, err = spotify.New(config)
+	default:
+		return fmt.Errorf("unhandled provider: %s", config.Provider)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to setup %s provider: %w", prov.Name(), err)
 	}
@@ -190,6 +201,7 @@ func run(ctx context.Context, song provider.Track) error {
 	)
 
 	logger.Info("search title")
+
 	track, err := prov.Search(ctx, title)
 	if err != nil {
 		if errors.Is(err, provider.ErrSongNotFound) {

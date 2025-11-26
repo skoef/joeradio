@@ -7,9 +7,9 @@ type Track struct {
 	track spotify.FullTrack
 }
 
-func newTrack(track spotify.FullTrack) *Track {
+func newTrack(track *spotify.FullTrack) *Track {
 	return &Track{
-		track: track,
+		track: *track,
 	}
 }
 

@@ -21,6 +21,10 @@ type Config struct {
 	SpotifyClientSecret string
 	SpotifyTokenPath    string
 	SpotifyPlaylistID   string
+
+	// AppleMusic specific config
+	AppleMusicAPIToken   string
+	AppleMusicPlaylistID string
 }
 
 // NewDefaultConfig returns default config
@@ -28,14 +32,23 @@ func NewDefaultConfig() Config {
 	cwd, _ := os.Getwd()
 
 	return Config{
-		Provider:         "spotify", // currently only supported
 		SpotifyTokenPath: cwd,
 	}
 }
 
+// Validate checks if the configuration is valid and returns an error otherwise
 func (c Config) Validate() error {
 	// check for provider settings
 	switch c.Provider {
+	case "applemusic":
+		if c.AppleMusicAPIToken == "" {
+			return errors.New("provide -apple-music-api-token")
+		}
+
+		if c.AppleMusicPlaylistID == "" {
+			return errors.New("provide -apple-music-playlist-id")
+		}
+
 	case "spotify":
 		if c.SpotifyClientID == "" {
 			return errors.New("provide -spotify-client-id")
@@ -49,6 +62,8 @@ func (c Config) Validate() error {
 			return errors.New("provide -spotify-playlist-id")
 		}
 
+	case "":
+		return errors.New("no provider chosen")
 	default:
 		return fmt.Errorf("unknown provider: %s", c.Provider)
 	}
