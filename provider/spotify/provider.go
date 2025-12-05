@@ -97,6 +97,9 @@ func (s *Spotify) Authenticate(ctx context.Context) error {
 		if err := s.cacheToken(freshToken); err != nil {
 			return fmt.Errorf("could not cache token: %w", err)
 		}
+
+		// use fresh token from now on
+		token = *freshToken
 	}
 
 	s.logger.Info("authentication complete", slog.Time("expiry", token.Expiry))
