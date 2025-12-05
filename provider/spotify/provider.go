@@ -22,7 +22,7 @@ import (
 
 const (
 	tokenFilename = "spotify.token"
-	redirectURI   = "http://localhost:8080/callback"
+	redirectURI   = "http://127.0.0.1:8080/callback"
 )
 
 // Client describes the functions we use on the spotify.Client so we can
