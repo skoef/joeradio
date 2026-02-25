@@ -18,8 +18,8 @@ type Provider interface {
 	Authenticate(ctx context.Context) error
 	// GetFullPlaylist returns the playlist
 	GetFullPlaylist(ctx context.Context) (*Playlist, error)
-	// Search performs query and returns the top result
-	Search(ctx context.Context, query string) (Track, error)
+	// Search performs query and returns normalized results
+	Search(ctx context.Context, query string) ([]Track, error)
 	// AddToPlaylist adds given track to playlist
 	AddToPlaylist(ctx context.Context, trackID string) error
 }

@@ -253,23 +253,23 @@ func (_c *MockProvider_Name_Call) RunAndReturn(run func() string) *MockProvider_
 }
 
 // Search provides a mock function for the type MockProvider
-func (_mock *MockProvider) Search(ctx context.Context, query string) (provider.Track, error) {
+func (_mock *MockProvider) Search(ctx context.Context, query string) ([]provider.Track, error) {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Search")
 	}
 
-	var r0 provider.Track
+	var r0 []provider.Track
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (provider.Track, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]provider.Track, error)); ok {
 		return returnFunc(ctx, query)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) provider.Track); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []provider.Track); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(provider.Track)
+			r0 = ret.Get(0).([]provider.Track)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -310,12 +310,12 @@ func (_c *MockProvider_Search_Call) Run(run func(ctx context.Context, query stri
 	return _c
 }
 
-func (_c *MockProvider_Search_Call) Return(track provider.Track, err error) *MockProvider_Search_Call {
-	_c.Call.Return(track, err)
+func (_c *MockProvider_Search_Call) Return(tracks []provider.Track, err error) *MockProvider_Search_Call {
+	_c.Call.Return(tracks, err)
 	return _c
 }
 
-func (_c *MockProvider_Search_Call) RunAndReturn(run func(ctx context.Context, query string) (provider.Track, error)) *MockProvider_Search_Call {
+func (_c *MockProvider_Search_Call) RunAndReturn(run func(ctx context.Context, query string) ([]provider.Track, error)) *MockProvider_Search_Call {
 	_c.Call.Return(run)
 	return _c
 }

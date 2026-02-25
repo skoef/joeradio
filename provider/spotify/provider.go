@@ -23,6 +23,7 @@ import (
 const (
 	tokenFilename = "spotify.token"
 	redirectURI   = "http://127.0.0.1:8080/callback"
+	searchLimit   = 5
 )
 
 // Client describes the functions we use on the spotify.Client so we can
@@ -139,11 +140,11 @@ func (s *Spotify) GetFullPlaylist(ctx context.Context) (*provider.Playlist, erro
 }
 
 // Search performs query and returns the results
-func (s *Spotify) Search(ctx context.Context, query string) (provider.Track, error) {
+func (s *Spotify) Search(ctx context.Context, query string) ([]provider.Track, error) {
 	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
 	// to 70's, 80's and 90's music
 	// this prevents us from getting remixes from later years in the results
-	results, err := s.client.Search(ctx, query+" year:1970-1999", spotify.SearchTypeTrack, spotify.Limit(1))
+	results, err := s.client.Search(ctx, query+" year:1970-1999", spotify.SearchTypeTrack, spotify.Limit(searchLimit))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil, s.refreshToken(ctx)
@@ -155,7 +156,12 @@ func (s *Spotify) Search(ctx context.Context, query string) (provider.Track, err
 		return nil, provider.ErrSongNotFound
 	}
 
-	return newTrack(results.Tracks.Tracks[0]), nil
+	tracks := make([]provider.Track, len(results.Tracks.Tracks))
+	for i := range results.Tracks.Tracks {
+		tracks[i] = newTrack(results.Tracks.Tracks[i])
+	}
+
+	return tracks, nil
 }
 
 // AddToPlaylist adds given track to playlist

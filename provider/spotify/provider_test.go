@@ -222,12 +222,12 @@ func TestSearch(t *testing.T) {
 		client.EXPECT().Search(mock.Anything, "song title year:1970-1999", mock.Anything, mock.Anything).
 			Return(result, nil)
 
-		track, err := s.Search(t.Context(), "song title")
+		tracks, err := s.Search(t.Context(), "song title")
 		require.NoError(t, err)
-		require.NotNil(t, track)
-		assert.Equal(t, "track-id-123", track.GetID())
-		assert.Equal(t, "Song Name", track.GetTitle())
-		assert.Equal(t, []string{"Artist One"}, track.GetArtists())
+		require.NotEmpty(t, tracks)
+		assert.Equal(t, "track-id-123", tracks[0].GetID())
+		assert.Equal(t, "Song Name", tracks[0].GetTitle())
+		assert.Equal(t, []string{"Artist One"}, tracks[0].GetArtists())
 	})
 }
 

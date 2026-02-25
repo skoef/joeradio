@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -205,7 +206,8 @@ func run(ctx context.Context, song provider.Track) error {
 	)
 
 	logger.Info("search title")
-	track, err := prov.Search(ctx, title)
+
+	tracks, err := prov.Search(ctx, title)
 	if err != nil {
 		if errors.Is(err, provider.ErrSongNotFound) {
 			return provider.ErrSongNotFound
@@ -214,18 +216,27 @@ func run(ctx context.Context, song provider.Track) error {
 		return fmt.Errorf("could not search: %w", err)
 	}
 
-	logger = logger.With(slog.String("track_id", track.GetID()))
+	logger.Debug("search results", slog.Int("tracks", len(tracks)))
 
-	logger.Info("found track",
-		slog.String("title", track.GetTitle()),
-		slog.String("artists", strings.Join(track.GetArtists(), ",")))
+	foundMatch := slices.ContainsFunc(tracks, func(track provider.Track) bool {
+		tlog := logger.With(slog.String("track_id", track.GetID()))
+		tlog.Debug("matching track",
+			slog.String("title", track.GetTitle()),
+			slog.String("artists", strings.Join(track.GetArtists(), ",")))
 
-	if playlistCache.Has(track.GetID()) {
+		return playlistCache.Has(track.GetID())
+	})
+
+	if foundMatch {
 		logger.Info("track already in playlist")
 
 		return nil
 	}
 
+	// assume first result is the best result
+	track := tracks[0]
+
+	logger = logger.With(slog.String("track_id", track.GetID()))
 	logger.Debug("adding track to playlist")
 
 	err = prov.AddToPlaylist(ctx, track.GetID())
