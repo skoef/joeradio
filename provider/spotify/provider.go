@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,7 +26,6 @@ import (
 const (
 	providerName  = "spotify"
 	tokenFilename = "spotify.token"
-	redirectURI   = "http://127.0.0.1:8080/callback"
 	searchLimit   = 5
 )
 
@@ -44,6 +45,7 @@ type Spotify struct {
 	token         *oauth2.Token
 	ch            chan *oauth2.Token
 	tokenPath     string
+	authPort      int
 	logger        *slog.Logger
 	playlistID    spotify.ID
 }
@@ -54,12 +56,20 @@ func New(config provider.Config) (*Spotify, error) {
 		return nil, errors.New("logger not configured")
 	}
 
+	// define callback URL for authenticator
+	callbackURL := url.URL{}
+
+	callbackURL.Scheme = "http"
+	callbackURL.Host = net.JoinHostPort(config.SpotifyAuthHost, strconv.Itoa(config.SpotifyAuthPort))
+	callbackURL.Path = "/callback"
+
 	return &Spotify{
 		logger:     config.Logger.With(slog.String("provider", "spotify")),
 		tokenPath:  config.SpotifyTokenPath,
 		playlistID: spotify.ID(config.SpotifyPlaylistID),
+		authPort:   config.SpotifyAuthPort,
 		authenticator: spotifyauth.New(
-			spotifyauth.WithRedirectURL(redirectURI),
+			spotifyauth.WithRedirectURL(callbackURL.String()),
 			spotifyauth.WithClientID(config.SpotifyClientID),
 			spotifyauth.WithClientSecret(config.SpotifyClientSecret),
 			spotifyauth.WithScopes(spotifyauth.ScopePlaylistModifyPublic),
@@ -226,16 +236,16 @@ func (s *Spotify) webAuth(ctx context.Context) (*oauth2.Token, error) {
 	// create a new context which we can cancel if something goes wrong inside
 	// the routine for the http server
 	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	var httpServer *http.Server
+	httpServer := &http.Server{
+		Addr:         fmt.Sprintf(":%d", s.authPort),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		Handler:      http.HandlerFunc(s.handleCallback),
+	}
 
 	go func() {
-		httpServer = &http.Server{
-			Addr:         ":8080",
-			ReadTimeout:  time.Second,
-			WriteTimeout: time.Second,
-			Handler:      http.HandlerFunc(s.handleCallback),
-		}
 		if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			cancel()
 		}
@@ -249,6 +259,8 @@ func (s *Spotify) webAuth(ctx context.Context) (*oauth2.Token, error) {
 	case <-cancelCtx.Done():
 		return nil, cancelCtx.Err()
 	case token := <-s.ch:
+		_ = httpServer.Shutdown(context.Background())
+
 		return token, nil
 	}
 }

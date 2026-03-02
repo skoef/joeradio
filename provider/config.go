@@ -21,6 +21,8 @@ type Config struct {
 	SpotifyClientSecret string
 	SpotifyTokenPath    string
 	SpotifyPlaylistID   string
+	SpotifyAuthHost     string
+	SpotifyAuthPort     int
 }
 
 // NewDefaultConfig returns default config
@@ -48,6 +50,10 @@ func (c Config) Validate() error {
 
 		if c.SpotifyPlaylistID == "" {
 			return errors.New("provide -spotify-playlist-id")
+		}
+
+		if c.SpotifyAuthPort < 0 || c.SpotifyAuthPort > 65535 {
+			return errors.New("-spotify-auth-port should be between 0 and 65535")
 		}
 
 	default:

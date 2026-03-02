@@ -48,6 +48,8 @@ func mainE() error {
 	flag.StringVar(&config.SpotifyClientID, "spotify-client-id", os.Getenv("SPOTIFY_CLIENT_ID"), "spotify client ID")
 	flag.StringVar(&config.SpotifyClientSecret, "spotify-client-secret", os.Getenv("SPOTIFY_CLIENT_SECRET"), "spotify client secret")
 	flag.StringVar(&config.SpotifyPlaylistID, "spotify-playlist-id", os.Getenv("SPOTIFY_PLAYLIST_ID"), "spotify playlist ID")
+	flag.StringVar(&config.SpotifyAuthHost, "spotify-auth-host", "127.0.0.1", "hostname for Spotify authentication callback")
+	flag.IntVar(&config.SpotifyAuthPort, "spotify-auth-port", 8080, "port for Spotify authentication callback")
 	flag.StringVar(&config.Provider, "provider", config.Provider, "choose provider, currently only spotify")
 	flag.BoolVar(&config.Debug, "debug", config.Debug, "enable debug logging")
 
