@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/zmb3/spotify/v2"
@@ -39,10 +40,11 @@ type Client interface {
 
 // Spotify implements the Provider interface
 type Spotify struct {
+	mu            sync.Mutex
 	client        Client
+	token         *oauth2.Token
 	authenticator *spotifyauth.Authenticator
 	authState     string
-	token         *oauth2.Token
 	ch            chan *oauth2.Token
 	tokenPath     string
 	authPort      int
@@ -121,8 +123,13 @@ func (s *Spotify) Authenticate(ctx context.Context) error {
 
 	s.logger.Info("authentication complete", slog.Time("expiry", token.Expiry))
 
+	s.mu.Lock()
 	s.client = spotify.New(s.authenticator.Client(ctx, &token))
 	s.token = &token
+	s.mu.Unlock()
+
+	// start re-authentication loop to proactively refresh the token
+	go s.checkToken(ctx)
 
 	return nil
 }
@@ -134,8 +141,12 @@ func (s *Spotify) GetFullPlaylist(ctx context.Context) (*provider.Playlist, erro
 
 	s.logger.Debug("fetching playlist", slog.String("playlist", string(s.playlistID)))
 
+	s.mu.Lock()
+	client := s.client
+	s.mu.Unlock()
+
 	for {
-		playlistItems, err := s.client.GetPlaylistItems(ctx, s.playlistID, spotify.Offset(offset))
+		playlistItems, err := client.GetPlaylistItems(ctx, s.playlistID, spotify.Offset(offset))
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +171,11 @@ func (s *Spotify) Search(ctx context.Context, query string) ([]provider.Track, e
 	// limit search to the range of 1970 until 1999, since Joe is a station dedicated
 	// to 70's, 80's and 90's music
 	// this prevents us from getting remixes from later years in the results
-	results, err := s.client.Search(ctx, query+" year:1970-1999", spotify.SearchTypeTrack, spotify.Limit(searchLimit))
+	s.mu.Lock()
+	client := s.client
+	s.mu.Unlock()
+
+	results, err := client.Search(ctx, query+" year:1970-1999", spotify.SearchTypeTrack, spotify.Limit(searchLimit))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil, s.refreshToken(ctx)
@@ -183,7 +198,11 @@ func (s *Spotify) Search(ctx context.Context, query string) ([]provider.Track, e
 
 // AddToPlaylist adds given track to playlist
 func (s *Spotify) AddToPlaylist(ctx context.Context, trackID string) error {
-	_, err := s.client.AddTracksToPlaylist(ctx, s.playlistID, spotify.ID(trackID))
+	s.mu.Lock()
+	client := s.client
+	s.mu.Unlock()
+
+	_, err := client.AddTracksToPlaylist(ctx, s.playlistID, spotify.ID(trackID))
 	if err != nil && errors.Is(err, context.Canceled) {
 		return s.refreshToken(ctx)
 	}
@@ -205,10 +224,45 @@ func (s *Spotify) cacheToken(token *oauth2.Token) error {
 	return nil
 }
 
+func (s *Spotify) checkToken(ctx context.Context) {
+	const retryBackoff = 30 * time.Second
+
+	for {
+		s.mu.Lock()
+		expiry := s.token.Expiry
+		s.mu.Unlock()
+
+		delay := max(0, time.Until(expiry)-5*time.Minute)
+		s.logger.Debug("timer set for token refresh", slog.Duration("trigger", delay))
+
+		select {
+		// wait for timer to finish
+		case <-time.After(delay):
+			if err := s.refreshToken(ctx); err != nil && !errors.Is(err, provider.ErrRefreshedToken) {
+				s.logger.Error("failed to refresh token, retrying in 30s", slog.String("error", err.Error()))
+
+				select {
+				case <-time.After(retryBackoff):
+				case <-ctx.Done():
+					return
+				}
+			}
+		// or the context to be closed
+		case <-ctx.Done():
+			s.logger.Warn("stopping checkToken")
+			return
+		}
+	}
+}
+
 func (s *Spotify) refreshToken(ctx context.Context) error {
 	s.logger.Warn("token expired, trying to refresh")
 
-	freshToken, err := s.authenticator.RefreshToken(ctx, s.token)
+	s.mu.Lock()
+	currentToken := s.token
+	s.mu.Unlock()
+
+	freshToken, err := s.authenticator.RefreshToken(ctx, currentToken)
 	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
@@ -218,8 +272,10 @@ func (s *Spotify) refreshToken(ctx context.Context) error {
 	}
 
 	// create new client with fresh token
+	s.mu.Lock()
 	s.client = spotify.New(s.authenticator.Client(ctx, freshToken))
 	s.token = freshToken
+	s.mu.Unlock()
 
 	return provider.ErrRefreshedToken
 }
