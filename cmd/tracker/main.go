@@ -129,12 +129,6 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 			return
 		}
 
-		defer func() {
-			if err = c.Close(); err != nil {
-				logger.Warn("could not close websocket", slog.String("error", err.Error()))
-			}
-		}()
-
 		// keep reading messages
 		for {
 			_, message, err := c.ReadMessage()
@@ -165,6 +159,10 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 					logger.Error("failed to join",
 						slog.String("error", err.Error()))
 
+					if err = c.Close(); err != nil {
+						logger.Warn("could not close websocket", slog.String("error", err.Error()))
+					}
+
 					return
 				}
 
@@ -174,10 +172,16 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 				if err != nil {
 					logger.Error("failed to parse message",
 						slog.String("error", err.Error()))
+
+					continue
 				}
 
 				songs <- song
 			}
+		}
+
+		if err = c.Close(); err != nil {
+			logger.Warn("could not close websocket", slog.String("error", err.Error()))
 		}
 	}
 }
