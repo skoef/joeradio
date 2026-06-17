@@ -11,6 +11,7 @@ func TestGetID(t *testing.T) {
 	t.Parallel()
 
 	ft := spotify.FullTrack{}
+
 	ft.ID = "abc123"
 	assert.Equal(t, "abc123", newTrack(ft).GetID())
 }
@@ -19,6 +20,7 @@ func TestGetTitle(t *testing.T) {
 	t.Parallel()
 
 	ft := spotify.FullTrack{}
+
 	ft.Name = "Blue Monday"
 	assert.Equal(t, "Blue Monday", newTrack(ft).GetTitle())
 }
@@ -37,6 +39,7 @@ func TestGetArtists(t *testing.T) {
 		t.Parallel()
 
 		ft := spotify.FullTrack{}
+
 		ft.Artists = []spotify.SimpleArtist{{Name: "New Order"}}
 		assert.Equal(t, []string{"New Order"}, newTrack(ft).GetArtists())
 	})
@@ -45,6 +48,7 @@ func TestGetArtists(t *testing.T) {
 		t.Parallel()
 
 		ft := spotify.FullTrack{}
+
 		ft.Artists = []spotify.SimpleArtist{{Name: "Artist A"}, {Name: "Artist B"}}
 		assert.Equal(t, []string{"Artist A", "Artist B"}, newTrack(ft).GetArtists())
 	})

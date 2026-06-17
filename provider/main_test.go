@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -9,6 +8,6 @@ import (
 
 func TestMain(m *testing.M) {
 	// make sure the logs are silenced during testing
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	os.Exit(m.Run())
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,7 +24,7 @@ import (
 const testPlaylistID = "test-playlist-id"
 
 func nullLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 func newTestSpotify(client Client) *Spotify {
@@ -89,10 +88,13 @@ func TestGetFullPlaylist(t *testing.T) {
 		s := newTestSpotify(client)
 
 		track := &spotify.FullTrack{}
+
 		track.ID = spotify.ID("track1")
+
 		response := &spotify.PlaylistItemPage{
 			Items: []spotify.PlaylistItem{{Track: spotify.PlaylistItemTrack{Track: track}}},
 		}
+
 		response.Total = 1
 
 		client.EXPECT().GetPlaylistItems(mock.Anything, spotify.ID(testPlaylistID), mock.Anything).
@@ -112,16 +114,20 @@ func TestGetFullPlaylist(t *testing.T) {
 
 		firstTrack := &spotify.FullTrack{}
 		firstTrack.ID = spotify.ID("track1")
+
 		firstResponse := &spotify.PlaylistItemPage{
 			Items: []spotify.PlaylistItem{{Track: spotify.PlaylistItemTrack{Track: firstTrack}}},
 		}
+
 		firstResponse.Total = 2
 
 		secondTrack := &spotify.FullTrack{}
 		secondTrack.ID = spotify.ID("track2")
+
 		secondResponse := &spotify.PlaylistItemPage{
 			Items: []spotify.PlaylistItem{{Track: spotify.PlaylistItemTrack{Track: secondTrack}}},
 		}
+
 		secondResponse.Total = 2
 
 		client.EXPECT().GetPlaylistItems(mock.Anything, spotify.ID(testPlaylistID), mock.Anything).
@@ -161,6 +167,7 @@ func TestSearch(t *testing.T) {
 
 		client := mocks.NewMockSpotifyClient(t)
 		s := newTestSpotify(client)
+
 		s.token = &oauth2.Token{}
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -201,6 +208,7 @@ func TestSearch(t *testing.T) {
 		s := newTestSpotify(client)
 
 		fullTrack := spotify.FullTrack{}
+
 		fullTrack.ID = "track-id-123"
 		fullTrack.Name = "Song Name"
 		fullTrack.Artists = []spotify.SimpleArtist{{Name: "Artist One"}}
@@ -208,6 +216,7 @@ func TestSearch(t *testing.T) {
 		result := &spotify.SearchResult{
 			Tracks: &spotify.FullTrackPage{},
 		}
+
 		result.Tracks.Tracks = []spotify.FullTrack{fullTrack}
 
 		client.EXPECT().Search(mock.Anything, "song title year:1970-1999", mock.Anything, mock.Anything).
@@ -257,6 +266,7 @@ func TestAddToPlaylist(t *testing.T) {
 
 		client := mocks.NewMockSpotifyClient(t)
 		s := newTestSpotify(client)
+
 		s.token = &oauth2.Token{}
 
 		ctx, cancel := context.WithCancel(t.Context())
