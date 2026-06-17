@@ -146,8 +146,6 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 						slog.String("error", err.Error()))
 				}
 
-				time.Sleep(time.Second * 10)
-
 				break
 			}
 
@@ -182,6 +180,12 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 
 		if err = c.Close(); err != nil {
 			logger.Warn("could not close websocket", slog.String("error", err.Error()))
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
 		}
 	}
 }
