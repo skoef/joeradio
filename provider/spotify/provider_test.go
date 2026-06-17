@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -23,9 +24,13 @@ import (
 
 const testPlaylistID = "test-playlist-id"
 
+func nullLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
 func newTestSpotify(client Client) *Spotify {
 	return &Spotify{
-		logger:        slog.Default(),
+		logger:        nullLogger(),
 		playlistID:    spotify.ID(testPlaylistID),
 		authenticator: spotifyauth.New(),
 		client:        client,
@@ -36,7 +41,7 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	cfg := provider.Config{
-		Logger:              slog.Default(),
+		Logger:              nullLogger(),
 		SpotifyClientID:     "client-id",
 		SpotifyClientSecret: "client-secret",
 		SpotifyPlaylistID:   "playlist-id",
@@ -284,7 +289,7 @@ func TestAuthenticate(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, tokenFilename), data, 0o600))
 
 		s := &Spotify{
-			logger:        slog.Default(),
+			logger:        nullLogger(),
 			tokenPath:     dir,
 			playlistID:    spotify.ID(testPlaylistID),
 			authenticator: spotifyauth.New(),
@@ -302,7 +307,7 @@ func TestAuthenticate(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, tokenFilename), []byte("not valid json"), 0o600))
 
 		s := &Spotify{
-			logger:        slog.Default(),
+			logger:        nullLogger(),
 			tokenPath:     dir,
 			playlistID:    spotify.ID(testPlaylistID),
 			authenticator: spotifyauth.New(),
