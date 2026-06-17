@@ -73,7 +73,7 @@ func mainE() error {
 	// create spotify provider
 	prov, err = spotify.New(config)
 	if err != nil {
-		return fmt.Errorf("failed to setup %s provider: %w", prov.Name(), err)
+		return fmt.Errorf("failed to setup %s provider: %w", config.Provider, err)
 	}
 
 	if err := prov.Authenticate(ctx); err != nil {
