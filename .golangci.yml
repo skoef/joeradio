@@ -81,6 +81,14 @@ linters:
     - usestdlibvars # A linter that detect the possibility to use variables/constants from the Go standard library.
     - usetesting # Reports wheter a function can be replaced by an alternative from the testing package.
     - wsl_v5 # Add or remove empty lines.
+    - embeddedstructfieldcheck # Embedded types should be at the top of the field list.
+    - forcetypeassert # Find forced type assertions.
+    - loggercheck # Checks key value pairs for common logger libraries (slog, zap, etc.).
+    - modernize # Suggests simplifications using modern language and library features.
+    - nestif # Reports deeply nested if statements.
+    - recvcheck # Checks for receiver type consistency.
+    - sloglint # Ensures consistent code style when using log/slog.
+    - wastedassign # Finds wasted assignment statements.
 
   # Disable specific linter
   # https://golangci-lint.run/usage/linters/#disabled-by-default
@@ -256,7 +264,7 @@ linters:
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
-      min-complexity: 30
+      min-complexity: 20
 
     goconst:
       # Minimal length of string constant.
@@ -969,7 +977,7 @@ linters:
         shadow:
           # Whether to be strict about shadowing; can be noisy.
           # Default: false
-          strict: false
+          strict: true
         unusedresult:
           # Comma-separated list of functions whose results must be used
           # (in addition to default:
@@ -2165,7 +2173,7 @@ formatters:
       sections:
         - standard # Standard section: captures all standard packages.
         - default # Default section: contains all imports that could not be matched to another section type.
-        - prefix(gitlab.com/maxem) # Custom section: groups all imports with the specified Prefix.
+        - prefix(joeradio) # Custom section: groups all local module imports.
         - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
 
       # Checks that no inline comments are present.

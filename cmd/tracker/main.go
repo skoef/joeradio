@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -68,12 +70,13 @@ func mainE() error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	// create spotify provider
 	prov, err = spotify.New(config)
 	if err != nil {
-		return fmt.Errorf("failed to setup %s provider: %w", prov.Name(), err)
+		return fmt.Errorf("failed to setup %s provider: %w", config.Provider, err)
 	}
 
 	if err := prov.Authenticate(ctx); err != nil {
@@ -126,16 +129,18 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 		c, _, err := websocket.DefaultDialer.DialContext(ctx, source.WebsocketURL, nil)
 		if err != nil {
 			logger.Error("failed to connect websocket", slog.String("error", err.Error()))
-			return
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(10 * time.Second):
+			}
+
+			continue
 		}
 
-		defer func() {
-			if err = c.Close(); err != nil {
-				logger.Warn("could not close websocket", slog.String("error", err.Error()))
-			}
-		}()
-
 		// keep reading messages
+	readLoop:
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
@@ -152,8 +157,6 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 						slog.String("error", err.Error()))
 				}
 
-				time.Sleep(time.Second * 10)
-
 				break
 			}
 
@@ -165,7 +168,7 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 					logger.Error("failed to join",
 						slog.String("error", err.Error()))
 
-					return
+					break readLoop
 				}
 
 			case "h": // heartbeat, ignore
@@ -174,10 +177,22 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 				if err != nil {
 					logger.Error("failed to parse message",
 						slog.String("error", err.Error()))
+
+					continue
 				}
 
 				songs <- song
 			}
+		}
+
+		if err = c.Close(); err != nil {
+			logger.Warn("could not close websocket", slog.String("error", err.Error()))
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
 		}
 	}
 }
