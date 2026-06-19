@@ -1,3 +1,4 @@
+// Package source implements the websocket source for the tracks stream
 package source
 
 import (

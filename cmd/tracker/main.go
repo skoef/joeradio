@@ -51,6 +51,7 @@ func mainE() error {
 	flag.StringVar(&config.Provider, "provider", config.Provider, "choose provider, currently only spotify")
 	flag.BoolVar(&config.Debug, "debug", config.Debug, "enable debug logging")
 
+	//nolint:revive // mainE is basically main (deep-exit)
 	flag.Parse()
 
 	// set up logging
@@ -125,16 +126,18 @@ func mainE() error {
 func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 	logger := slog.With("func", "handleWebsocket")
 
+	const timeout = 10 * time.Second
+
 	// keep retrying the websocket
 	for {
-		c, _, err := websocket.DefaultDialer.DialContext(ctx, source.WebsocketURL, nil)
+		conn, _, err := websocket.DefaultDialer.DialContext(ctx, source.WebsocketURL, nil)
 		if err != nil {
 			logger.Error("failed to connect websocket", slog.String("error", err.Error()))
 
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(10 * time.Second):
+			case <-time.After(timeout):
 			}
 
 			continue
@@ -143,11 +146,10 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 		// keep reading messages
 	readLoop:
 		for {
-			_, message, err := c.ReadMessage()
+			_, message, err := conn.ReadMessage()
 			if err != nil {
 				// check if the connection was closed
-				var closeError *websocket.CloseError
-				if errors.As(err, &closeError) {
+				if closeError, ok := errors.AsType[*websocket.CloseError](err); ok {
 					// when connection was closed, reopen after 10 seconds
 					logger.Warn("connection was closed, reconnecting",
 						slog.Int("code", closeError.Code),
@@ -165,7 +167,7 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 			case "o": // welcome message
 				logger.Debug("received welcome")
 
-				if err = c.WriteMessage(websocket.TextMessage, []byte(source.JoinMessage)); err != nil {
+				if err = conn.WriteMessage(websocket.TextMessage, []byte(source.JoinMessage)); err != nil {
 					logger.Error("failed to join",
 						slog.String("error", err.Error()))
 
@@ -186,14 +188,14 @@ func handleWebsocket(ctx context.Context, songs chan<- provider.Track) {
 			}
 		}
 
-		if err = c.Close(); err != nil {
+		if err = conn.Close(); err != nil {
 			logger.Warn("could not close websocket", slog.String("error", err.Error()))
 		}
 
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(10 * time.Second):
+		case <-time.After(timeout):
 		}
 	}
 }

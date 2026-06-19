@@ -33,6 +33,7 @@ func NewDefaultConfig() Config {
 	}
 }
 
+// Validate returns an error when the configuration doesn't validate
 func (c Config) Validate() error {
 	// check for provider settings
 	switch c.Provider {

@@ -1,3 +1,4 @@
+// Package spotify implements a playlist provider for Spotify
 package spotify
 
 import (
@@ -21,6 +22,7 @@ import (
 )
 
 const (
+	providerName  = "spotify"
 	tokenFilename = "spotify.token"
 	redirectURI   = "http://127.0.0.1:8080/callback"
 	searchLimit   = 5
@@ -48,6 +50,10 @@ type Spotify struct {
 
 // New returns new Spotify provider
 func New(config provider.Config) (*Spotify, error) {
+	if config.Logger == nil {
+		return nil, errors.New("logger not configured")
+	}
+
 	return &Spotify{
 		logger:     config.Logger.With(slog.String("provider", "spotify")),
 		tokenPath:  config.SpotifyTokenPath,
@@ -63,7 +69,7 @@ func New(config provider.Config) (*Spotify, error) {
 
 // Name returns the provider's name
 func (Spotify) Name() string {
-	return "spotify"
+	return providerName
 }
 
 // Authenticate tries to find a reusable token or starts new authentication process and returns a new token
@@ -149,6 +155,7 @@ func (s *Spotify) Search(ctx context.Context, query string) ([]provider.Track, e
 		if errors.Is(err, context.Canceled) {
 			return nil, s.refreshToken(ctx)
 		}
+
 		return nil, fmt.Errorf("could not search: %w", err)
 	}
 

@@ -1,3 +1,4 @@
+// Package provider defines the interface for playlist providers to implement
 package provider
 
 import (

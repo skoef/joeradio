@@ -1,6 +1,6 @@
 module joeradio
 
-go 1.24
+go 1.26
 
 tool github.com/vektra/mockery/v3
 
